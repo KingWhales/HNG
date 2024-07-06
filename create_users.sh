@@ -1,9 +1,3 @@
-pub   rsa3072 2024-07-06 [SC] [expires: 2026-07-06]
-      83D1D207F3C3C615223C6F53549570432410CDB2
-uid                      Muideen Afosi <olawaleafosi@gmail.com>
-sub   rsa3072 2024-07-06 [E] [expires: 2026-07-06]
-
-
 #!/bin/bash
 
 # Log file and password storage file
