@@ -47,7 +47,7 @@ while IFS=';' read -r user groups; do
         continue
     fi
 
-    # Create personal group
+    # Create personal group if not exists
     if ! getent group "$user" > /dev/null 2>&1; then
         groupadd "$user"
         if [ $? -eq 0 ]; then
@@ -60,11 +60,11 @@ while IFS=';' read -r user groups; do
         log_action "Group $user already exists"
     fi
 
-    # Create user with personal group
+    # Create user with home directory and primary group
     if ! id -u "$user" > /dev/null 2>&1; then
-        useradd -m -g "$user" -G "$groups" "$user"
+        useradd -m -g "$user" -G "$groups" -d "/home/$user" -s "/bin/bash" "$user"
         if [ $? -eq 0 ]; then
-            log_action "User $user created with groups $groups"
+            log_action "User $user created with home directory /home/$user and groups $groups"
 
             # Generate and set password
             password=$(generate_password)
