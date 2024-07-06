@@ -76,14 +76,12 @@ while IFS=';' read -r username groups; do
         log_action "User $username already exists"
     fi
 
-    # Verify the user is in their personal group
-    user_groups=$(id -nG "$username" | xargs)
-    if [[ "$user_groups" == *"$username"* ]]; then
-        log_action "User $username is in their personal group $username"
+    # Check if the user belongs to their personal group
+    if id -nG "$username" | grep -qw "$username"; then
+        log_action "User $username belongs to their personal group $username"
     else
-        log_action "Warning: User $username is NOT in their personal group $username"
+        log_action "Error: User $username does not belong to their personal group $username"
     fi
-
 done < "$USERFILE"
 
 # Output the required format
