@@ -4,16 +4,26 @@
 LOGFILE="/var/log/user_management.log"
 SECURE_PASSWORD_FILE="/var/secure/secure_user_passwords.txt"
 
-# Function to generate a random password
+# Function to generate a random password securely
 generate_password() {
-    echo $(openssl rand -base64 12)
+    openssl rand -base64 12
 }
 
 # Ensure log and password files exist with secure permissions
-touch "$LOGFILE"
-touch "$SECURE_PASSWORD_FILE"
-chmod 600 "$LOGFILE"
-chmod 600 "$SECURE_PASSWORD_FILE"
+touch "$LOGFILE" "$SECURE_PASSWORD_FILE"
+chmod 600 "$LOGFILE" "$SECURE_PASSWORD_FILE"
+
+# Function to log actions
+log_action() {
+    local message=$1
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $message" | tee -a "$LOGFILE"
+}
+
+# Function to encrypt passwords securely
+encrypt_password() {
+    local password=$1
+    echo "$password" | openssl enc -aes-256-cbc -a -salt -pass pass:$(openssl rand -base64 32)
+}
 
 # Check if the input file is provided as an argument
 if [ "$#" -ne 1 ]; then
@@ -22,18 +32,6 @@ if [ "$#" -ne 1 ]; then
 fi
 
 USERFILE="$1"
-
-# Function to log actions
-log_action() {
-    local message=$1
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $message" | tee -a "$LOGFILE"
-}
-
-# Function to encrypt passwords
-encrypt_password() {
-    local password=$1
-    echo "$password" | openssl enc -aes-256-cbc -a -salt -pass pass:$(openssl rand -base64 32)
-}
 
 # Read the input file line by line
 while IFS=';' read -r user groups; do
@@ -77,9 +75,25 @@ while IFS=';' read -r user groups; do
                 echo "$user:$encrypted_password" >> "$SECURE_PASSWORD_FILE"
 
                 # Set home directory permissions
-                chmod 700 /home/"$user"
-                chown "$user:$user" /home/"$user"
+                chmod 700 "/home/$user"
+                chown "$user:$user" "/home/$user"
                 log_action "Home directory permissions set for $user"
+
+                # Verify user creation
+                if id -u "$user" > /dev/null 2>&1; then
+                    log_action "Verification: User $user exists"
+                else
+                    log_action "Verification: User $user does not exist"
+                fi
+
+                # Verify group membership
+                for group in $groups; do
+                    if groups "$user" | grep -q "\b$group\b"; then
+                        log_action "Verification: User $user belongs to group $group"
+                    else
+                        log_action "Verification: User $user does not belong to group $group"
+                    fi
+                done
             else
                 log_action "Error: Failed to set password for $user"
             fi
@@ -88,33 +102,6 @@ while IFS=';' read -r user groups; do
         fi
     else
         log_action "User $user already exists"
-    fi
-
-    # Verify user and group creation
-    if id -u "$user" > /dev/null 2>&1; then
-        log_action "Verification: User $user exists"
-        echo "Verification: User $user exists"
-    else
-        log_action "Verification: User $user does not exist"
-        echo "Verification: User $user does not exist"
-    fi
-
-    if getent group "$user" > /dev/null 2>&1; then
-        log_action "Verification: Group $user exists"
-        echo "Verification: Group $user exists"
-    else
-        log_action "Verification: Group $user does not exist"
-        echo "Verification: Group $user does not exist"
-    fi
-done < "$USERFILE"
-
-# Output the required format
-echo "Username;Groups"
-while IFS=';' read -r user groups; do
-    user=$(echo "$user" | xargs)
-    groups=$(echo "$groups" | xargs)
-    if [ -n "$user" ]; then
-        echo "$user;$groups"
     fi
 done < "$USERFILE"
 
