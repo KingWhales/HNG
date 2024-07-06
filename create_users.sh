@@ -2,7 +2,6 @@
 
 # Log file and password storage file
 LOGFILE="/var/log/user_management.log"
-PASSWORD_FILE="/var/secure/user_passwords.txt"
 SECURE_PASSWORD_FILE="/var/secure/secure_user_passwords.txt"
 
 # Function to generate a random password
@@ -10,11 +9,10 @@ generate_password() {
     echo $(openssl rand -base64 12)
 }
 
-# Ensure log and password files exist
+# Ensure log and password files exist with secure permissions
 touch $LOGFILE
-touch $PASSWORD_FILE
 touch $SECURE_PASSWORD_FILE
-chmod 600 $PASSWORD_FILE
+chmod 600 $LOGFILE
 chmod 600 $SECURE_PASSWORD_FILE
 
 # Check if the input file is provided as an argument
@@ -50,17 +48,17 @@ while IFS=';' read -r username groups; do
     fi
 
     # Create personal group
-    #if ! getent group "$username" > /dev/null 2>&1; then
-     #   groupadd "$username"
-      #  if [ $? -eq 0 ]; then
-       #     log_action "Group $username created"
-        #else
-         #   log_action "Error: Failed to create group $username"
-          #  continue
-        #fi
-    #else
-     #   log_action "Group $username already exists"
-    #fi
+    if ! getent group "$username" > /dev/null 2>&1; then
+        groupadd "$username"
+        if [ $? -eq 0 ]; then
+            log_action "Group $username created"
+        else
+            log_action "Error: Failed to create group $username"
+            continue
+        fi
+    else
+        log_action "Group $username already exists"
+    fi
 
     # Create user with personal group
     if ! id -u "$username" > /dev/null 2>&1; then
@@ -77,9 +75,6 @@ while IFS=';' read -r username groups; do
                 # Encrypt and save the password to the secure file
                 encrypted_password=$(encrypt_password "$password")
                 echo "$username:$encrypted_password" >> $SECURE_PASSWORD_FILE
-
-                # Save the plain password to the password file (for reference)
-                echo "$username:$password" >> $PASSWORD_FILE
 
                 # Set home directory permissions
                 chmod 700 /home/"$username"
@@ -98,14 +93,18 @@ while IFS=';' read -r username groups; do
     # Verify user and group creation
     if id -u "$username" > /dev/null 2>&1; then
         log_action "Verification: User $username exists"
+        echo "Verification: User $username exists"
     else
         log_action "Verification: User $username does not exist"
+        echo "Verification: User $username does not exist"
     fi
 
     if getent group "$username" > /dev/null 2>&1; then
         log_action "Verification: Group $username exists"
+        echo "Verification: Group $username exists"
     else
         log_action "Verification: Group $username does not exist"
+        echo "Verification: Group $username does not exist"
     fi
 done < "$USERFILE"
 
