@@ -31,6 +31,12 @@ log_action() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $message" | sudo tee -a $LOGFILE
 }
 
+# Function to encrypt password file
+encrypt_password_file() {
+    sudo gpg --yes --batch --recipient $GPG_RECIPIENT --output $ENCRYPTED_PASSWORD_FILE --encrypt $PASSWORD_FILE
+    sudo shred -u $PASSWORD_FILE
+}
+
 # Decrypt the password file if it exists
 if [ -f $ENCRYPTED_PASSWORD_FILE ]; then
     sudo gpg --decrypt $ENCRYPTED_PASSWORD_FILE > $PASSWORD_FILE
@@ -67,12 +73,11 @@ while IFS=';' read -r username groups; do
             if [ $? -eq 0 ]; then
                 log_action "Password set for $username"
 
-                # Save the password to the secure file
+                # Save the password securely
                 echo "$username:$password" | sudo tee -a $PASSWORD_FILE > /dev/null
 
                 # Encrypt the password file
-                sudo gpg --yes --batch --recipient $GPG_RECIPIENT --output $ENCRYPTED_PASSWORD_FILE --encrypt $PASSWORD_FILE
-                sudo shred -u $PASSWORD_FILE
+                encrypt_password_file
 
                 # Set home directory permissions
                 sudo chmod 700 /home/"$username"
@@ -115,6 +120,9 @@ while IFS=';' read -r username groups; do
 
 done < "$USERFILE"
 
+# Encrypt password file one last time before finishing
+encrypt_password_file
+
 # Output the required format
 echo "Users and Groups created:"
 echo "Username;Groups"
@@ -125,4 +133,4 @@ while IFS=';' read -r username groups; do
     fi
 done < "$USERFILE"
 
-echo "User and Group creation process completed. Check $LOGFILE for details."
+echo "User, Group creation, and Password storage process completed. Check $LOGFILE for details."
