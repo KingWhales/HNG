@@ -42,7 +42,12 @@ while IFS=';' read -r username groups; do
     # Create personal group
     if ! getent group "$username" > /dev/null 2>&1; then
         groupadd "$username"
-        log_action "Group $username created"
+        if [ $? -eq 0 ]; then
+            log_action "Group $username created"
+        else
+            log_action "Error: Failed to create group $username"
+            continue
+        fi
     else
         log_action "Group $username already exists"
     fi
@@ -74,6 +79,19 @@ while IFS=';' read -r username groups; do
         fi
     else
         log_action "User $username already exists"
+    fi
+
+    # Verify user and group creation
+    if id -u "$username" > /dev/null 2>&1; then
+        log_action "Verification: User $username exists"
+    else
+        log_action "Verification: User $username does not exist"
+    fi
+
+    if getent group "$username" > /dev/null 2>&1; then
+        log_action "Verification: Group $username exists"
+    else
+        log_action "Verification: Group $username does not exist"
     fi
 done < "$USERFILE"
 
