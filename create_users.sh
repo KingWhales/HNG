@@ -40,107 +40,63 @@ fi
 sudo touch $PASSWORD_FILE
 sudo chmod 600 $PASSWORD_FILE
 
-# Read the input file line by line
-while IFS=';' read -r user groups personal_group; do
+# Read the input file line by line and create users
+while IFS=';' read -r username groups; do
     # Remove leading/trailing whitespace
-    user=$(echo "$user" | xargs)
-    groups=$(echo "$groups" | xargs)
-    personal_group=$(echo "$personal_group" | xargs)
+    username=$(echo "$username" | xargs)
 
     # Debugging output
-    echo "Read user: '$user'"
+    echo "Read username: '$username'"
     echo "Read groups: '$groups'"
-    echo "Read personal_group: '$personal_group'"
 
     # Validate username
-    if [ -z "$user" ]; then
-        log_action "Error: Empty user found. Skipping line."
+    if [ -z "$username" ]; then
+        log_action "Error: Empty username found. Skipping line."
         continue
     fi
 
-    # Check if personal group should be created
-    if [ "$personal_group" == "yes" ]; then
-        # Create personal group
-        if ! getent group "$user" > /dev/null 2>&1; then
-            sudo groupadd "$user"
+    # Create user
+    if ! id -u "$username" > /dev/null 2>&1; then
+        sudo useradd -m "$username"
+        if [ $? -eq 0 ]; then
+            log_action "User $username created"
+
+            # Generate and set password
+            password=$(generate_password)
+            echo "$username:$password" | sudo chpasswd
             if [ $? -eq 0 ]; then
-                log_action "Group $user created"
+                log_action "Password set for $username"
+
+                # Save the password to the secure file
+                echo "$username:$password" | sudo tee -a $PASSWORD_FILE > /dev/null
+
+                # Encrypt the password file
+                sudo gpg --yes --batch --recipient $GPG_RECIPIENT --output $ENCRYPTED_PASSWORD_FILE --encrypt $PASSWORD_FILE
+                sudo shred -u $PASSWORD_FILE
+
+                # Set home directory permissions
+                sudo chmod 700 /home/"$username"
+                sudo chown "$username:$username" /home/"$username"
+                log_action "Home directory permissions set for $username"
             else
-                log_action "Error: Failed to create group $user. Check permissions."
-                continue
+                log_action "Error: Failed to set password for $username"
             fi
         else
-            log_action "Group $user already exists"
+            log_action "Error: Failed to create user $username. Check permissions."
         fi
-
-        # Create user with personal group
-        if ! id -u "$user" > /dev/null 2>&1; then
-            sudo useradd -m -g "$user" -G "$groups" "$user"
-            if [ $? -eq 0 ]; then
-                log_action "User $user created with primary group $user and additional groups $groups"
-            else
-                log_action "Error: Failed to create user $user. Check permissions."
-                continue
-            fi
-        else
-            log_action "User $user already exists"
-        fi
-
     else
-        # Create user without personal group
-        if ! id -u "$user" > /dev/null 2>&1; then
-            sudo useradd -m -G "$groups" "$user"
-            if [ $? -eq 0 ]; then
-                log_action "User $user created with additional groups $groups"
-            else
-                log_action "Error: Failed to create user $user. Check permissions."
-                continue
-            fi
-        else
-            log_action "User $user already exists"
-        fi
+        log_action "User $username already exists"
     fi
-
-    # Generate and set password for the user
-    password=$(generate_password)
-    echo "$user:$password" | sudo chpasswd
-    if [ $? -eq 0 ]; then
-        log_action "Password set for $user"
-
-        # Save the password to the secure file
-        echo "$user:$password" | sudo tee -a $PASSWORD_FILE > /dev/null
-
-        # Encrypt the password file
-        sudo gpg --yes --batch --recipient $GPG_RECIPIENT --output $ENCRYPTED_PASSWORD_FILE --encrypt $PASSWORD_FILE
-        sudo shred -u $PASSWORD_FILE
-
-        # Set home directory permissions
-        sudo chmod 700 /home/"$user"
-        sudo chown "$user:$user" /home/"$user"
-        log_action "Home directory permissions set for $user"
-    else
-        log_action "Error: Failed to set password for $user"
-    fi
-
-    # Verify additional groups
-    for group in $(echo $groups | tr "," "\n"); do
-        if id -nG "$user" | grep -qw "$group"; then
-            log_action "User $user belongs to group $group"
-        else
-            log_action "Error: User $user does not belong to group $group"
-        fi
-    done
 
 done < "$USERFILE"
 
 # Output the required format
-echo "User;Groups;Personal Group"
-while IFS=';' read -r username groups personal_group; do
-    user=$(echo "$username" | xargs)
-    groups=$(echo "$groups" | xargs)
-    personal_group=$(echo "$personal_group" | xargs)
-    if [ -n "$user" ]; then
-        echo "$user;$groups;$personal_group"
+echo "Users created:"
+echo "Username"
+while IFS=';' read -r username groups; do
+    username=$(echo "$username" | xargs)
+    if [ -n "$username" ]; then
+        echo "$username"
     fi
 done < "$USERFILE"
 
