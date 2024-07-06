@@ -28,69 +28,69 @@ log_action() {
 }
 
 # Read the input file line by line
-while IFS=';' read -r username groups; do
+while IFS=';' read -r user groups; do
     # Remove leading/trailing whitespace
-    username=$(echo "$username" | xargs)
+    user=$(echo "$user" | xargs)
     groups=$(echo "$groups" | xargs)
 
     # Validate username
-    if [ -z "$username" ]; then
+    if [ -z "$user" ]; then
         log_action "Error: Empty username found. Skipping line."
         continue
     fi
 
     # Create personal group if it does not exist
-    if ! getent group "$username" > /dev/null 2>&1; then
-        groupadd "$username"
-        log_action "Group $username created"
+    if ! getent group "$user" > /dev/null 2>&1; then
+        groupadd "$user"
+        log_action "Group $user created"
     else
-        log_action "Group $username already exists"
+        log_action "Group $user already exists"
     fi
 
     # Create user with personal group if user does not exist
-    if ! id -u "$username" > /dev/null 2>&1; then
-        useradd -m -g "$username" -G "$groups" "$username"
+    if ! id -u "$user" > /dev/null 2>&1; then
+        useradd -m -g "$user" -G "$groups" "$user"
         if [ $? -eq 0 ]; then
-            log_action "User $username created with groups $groups"
+            log_action "User $user created with groups $groups"
 
             # Generate and set password
             password=$(generate_password)
-            echo "$username:$password" | chpasswd
+            echo "$user:$password" | chpasswd
             if [ $? -eq 0 ]; then
-                log_action "Password set for $username"
+                log_action "Password set for $user"
 
                 # Save the password to the secure file
-                echo "$username:$password" >> $PASSWORD_FILE
+                echo "$user:$password" >> $PASSWORD_FILE
 
                 # Set home directory permissions
-                chmod 700 /home/"$username"
-                chown "$username:$username" /home/"$username"
-                log_action "Home directory permissions set for $username"
+                chmod 700 /home/"$user"
+                chown "$user:$user" /home/"$user"
+                log_action "Home directory permissions set for $user"
             else
-                log_action "Error: Failed to set password for $username"
+                log_action "Error: Failed to set password for $user"
             fi
         else
-            log_action "Error: Failed to create user $username"
+            log_action "Error: Failed to create user $user"
         fi
     else
-        log_action "User $username already exists"
+        log_action "User $user already exists"
     fi
 
     # Check if the user belongs to their personal group
-    if id -nG "$username" | grep -qw "$username"; then
-        log_action "User $username belongs to their personal group $username"
+    if id -nG "$user" | grep -qw "$user"; then
+        log_action "User $user belongs to their personal group $user"
     else
-        log_action "Error: User $username does not belong to their personal group $username"
+        log_action "Error: User $user does not belong to their personal group $user"
     fi
 done < "$USERFILE"
 
 # Output the required format
 echo "Username;Groups"
-while IFS=';' read -r username groups; do
-    username=$(echo "$username" | xargs)
+while IFS=';' read -r user groups; do
+    user=$(echo "$user" | xargs)
     groups=$(echo "$groups" | xargs)
-    if [ -n "$username" ]; then
-        echo "$username;$groups"
+    if [ -n "$user" ]; then
+        echo "$user;$groups"
     fi
 done < "$USERFILE"
 
