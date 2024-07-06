@@ -10,10 +10,10 @@ generate_password() {
 }
 
 # Ensure log and password files exist with secure permissions
-touch $LOGFILE
-touch $SECURE_PASSWORD_FILE
-chmod 600 $LOGFILE
-chmod 600 $SECURE_PASSWORD_FILE
+touch "$LOGFILE"
+touch "$SECURE_PASSWORD_FILE"
+chmod 600 "$LOGFILE"
+chmod 600 "$SECURE_PASSWORD_FILE"
 
 # Check if the input file is provided as an argument
 if [ "$#" -ne 1 ]; then
@@ -21,12 +21,12 @@ if [ "$#" -ne 1 ]; then
     exit 1
 fi
 
-USERFILE=$1
+USERFILE="$1"
 
 # Function to log actions
 log_action() {
     local message=$1
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $message" | tee -a $LOGFILE
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $message" | tee -a "$LOGFILE"
 }
 
 # Function to encrypt passwords
@@ -36,85 +36,85 @@ encrypt_password() {
 }
 
 # Read the input file line by line
-while IFS=';' read -r username groups; do
+while IFS=';' read -r user groups; do
     # Remove leading/trailing whitespace
-    username=$(echo "$username" | xargs)
+    user=$(echo "$user" | xargs)
     groups=$(echo "$groups" | xargs)
 
     # Validate username
-    if [ -z "$username" ]; then
+    if [ -z "$user" ]; then
         log_action "Error: Empty username found. Skipping line."
         continue
     fi
 
     # Create personal group
-    if ! getent group "$username" > /dev/null 2>&1; then
-        groupadd "$username"
+    if ! getent group "$user" > /dev/null 2>&1; then
+        groupadd "$user"
         if [ $? -eq 0 ]; then
-            log_action "Group $username created"
+            log_action "Group $user created"
         else
-            log_action "Error: Failed to create group $username"
+            log_action "Error: Failed to create group $user"
             continue
         fi
     else
-        log_action "Group $username already exists"
+        log_action "Group $user already exists"
     fi
 
     # Create user with personal group
-    if ! id -u "$username" > /dev/null 2>&1; then
-        useradd -m -g "$username" -G "$groups" "$username"
+    if ! id -u "$user" > /dev/null 2>&1; then
+        useradd -m -g "$user" -G "$groups" "$user"
         if [ $? -eq 0 ]; then
-            log_action "User $username created with groups $groups"
+            log_action "User $user created with groups $groups"
 
             # Generate and set password
             password=$(generate_password)
-            echo "$username:$password" | chpasswd
+            echo "$user:$password" | chpasswd
             if [ $? -eq 0 ]; then
-                log_action "Password set for $username"
+                log_action "Password set for $user"
 
                 # Encrypt and save the password to the secure file
                 encrypted_password=$(encrypt_password "$password")
-                echo "$username:$encrypted_password" >> $SECURE_PASSWORD_FILE
+                echo "$user:$encrypted_password" >> "$SECURE_PASSWORD_FILE"
 
                 # Set home directory permissions
-                chmod 700 /home/"$username"
-                chown "$username:$username" /home/"$username"
-                log_action "Home directory permissions set for $username"
+                chmod 700 /home/"$user"
+                chown "$user:$user" /home/"$user"
+                log_action "Home directory permissions set for $user"
             else
-                log_action "Error: Failed to set password for $username"
+                log_action "Error: Failed to set password for $user"
             fi
         else
-            log_action "Error: Failed to create user $username"
+            log_action "Error: Failed to create user $user"
         fi
     else
-        log_action "User $username already exists"
+        log_action "User $user already exists"
     fi
 
     # Verify user and group creation
-    if id -u "$username" > /dev/null 2>&1; then
-        log_action "Verification: User $username exists"
-        echo "Verification: User $username exists"
+    if id -u "$user" > /dev/null 2>&1; then
+        log_action "Verification: User $user exists"
+        echo "Verification: User $user exists"
     else
-        log_action "Verification: User $username does not exist"
-        echo "Verification: User $username does not exist"
+        log_action "Verification: User $user does not exist"
+        echo "Verification: User $user does not exist"
     fi
 
-    if getent group "$username" > /dev/null 2>&1; then
-        log_action "Verification: Group $username exists"
-        echo "Verification: Group $username exists"
+    if getent group "$user" > /dev/null 2>&1; then
+        log_action "Verification: Group $user exists"
+        echo "Verification: Group $user exists"
     else
-        log_action "Verification: Group $username does not exist"
-        echo "Verification: Group $username does not exist"
+        log_action "Verification: Group $user does not exist"
+        echo "Verification: Group $user does not exist"
     fi
 done < "$USERFILE"
 
 # Output the required format
 echo "Username;Groups"
-while IFS=';' read -r username groups; do
-    username=$(echo "$username" | xargs)
+while IFS=';' read -r user groups; do
+    user=$(echo "$user" | xargs)
     groups=$(echo "$groups" | xargs)
-    if [ -n "$username" ]; then
-        echo "$username;$groups"
+    if [ -n "$user" ]; then
+        echo "$user;$groups"
     fi
 done < "$USERFILE"
 
