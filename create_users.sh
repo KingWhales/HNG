@@ -40,7 +40,7 @@ fi
 sudo touch $PASSWORD_FILE
 sudo chmod 600 $PASSWORD_FILE
 
-# Read the input file line by line and create users
+# Read the input file line by line and create groups
 while IFS=';' read -r username groups; do
     # Remove leading/trailing whitespace
     username=$(echo "$username" | xargs)
@@ -83,21 +83,46 @@ while IFS=';' read -r username groups; do
             fi
         else
             log_action "Error: Failed to create user $username. Check permissions."
+            continue
         fi
     else
         log_action "User $username already exists"
     fi
 
+    # Verify additional groups
+    for group in $(echo $groups | tr "," "\n"); do
+        # Create group if it doesn't exist
+        if ! getent group "$group" > /dev/null 2>&1; then
+            sudo groupadd "$group"
+            if [ $? -eq 0 ]; then
+                log_action "Group $group created"
+            else
+                log_action "Error: Failed to create group $group. Check permissions."
+                continue
+            fi
+        else
+            log_action "Group $group already exists"
+        fi
+
+        # Add user to the group
+        sudo usermod -aG "$group" "$username"
+        if [ $? -eq 0 ]; then
+            log_action "User $username added to group $group"
+        else
+            log_action "Error: Failed to add user $username to group $group"
+        fi
+    done
+
 done < "$USERFILE"
 
 # Output the required format
-echo "Users created:"
-echo "Username"
+echo "Users and Groups created:"
+echo "Username;Groups"
 while IFS=';' read -r username groups; do
     username=$(echo "$username" | xargs)
     if [ -n "$username" ]; then
-        echo "$username"
+        echo "$username;$groups"
     fi
 done < "$USERFILE"
 
-echo "User creation process completed. Check $LOGFILE for details."
+echo "User and Group creation process completed. Check $LOGFILE for details."
