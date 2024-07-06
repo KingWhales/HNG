@@ -75,6 +75,13 @@ while IFS=';' read -r username groups; do
     else
         log_action "User $username already exists"
     fi
+
+    # Check if the user belongs to their personal group
+    if id -nG "$username" | grep -qw "$username"; then
+        log_action "User $username belongs to their personal group $username"
+    else
+        log_action "Error: User $username does not belong to their personal group $username"
+    fi
 done < "$USERFILE"
 
 # Output the required format
