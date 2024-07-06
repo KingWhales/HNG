@@ -13,8 +13,9 @@ generate_password() {
 }
 
 # Ensure log and password files exist
-touch $LOGFILE
-touch $PASSWORD_FILE
+sudo touch $LOGFILE
+sudo touch $PASSWORD_FILE
+sudo chmod 600 $PASSWORD_FILE
 
 # Check if the input file is provided as an argument
 if [ "$#" -ne 1 ]; then
@@ -27,17 +28,17 @@ USERFILE=$1
 # Function to log actions
 log_action() {
     local message=$1
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $message" | tee -a $LOGFILE
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $message" | sudo tee -a $LOGFILE
 }
 
 # Decrypt the password file if it exists
 if [ -f $ENCRYPTED_PASSWORD_FILE ]; then
-    gpg --decrypt $ENCRYPTED_PASSWORD_FILE > $PASSWORD_FILE
+    sudo gpg --decrypt $ENCRYPTED_PASSWORD_FILE > $PASSWORD_FILE
 fi
 
 # Ensure the password file exists with proper permissions
-touch $PASSWORD_FILE
-chmod 600 $PASSWORD_FILE
+sudo touch $PASSWORD_FILE
+sudo chmod 600 $PASSWORD_FILE
 
 # Read the input file line by line
 while IFS=';' read -r user groups; do
@@ -57,40 +58,45 @@ while IFS=';' read -r user groups; do
 
     # Create personal group
     if ! getent group "$user" > /dev/null 2>&1; then
-        groupadd "$user"
-        log_action "Group $user created"
+        sudo groupadd "$user"
+        if [ $? -eq 0 ]; then
+            log_action "Group $user created"
+        else
+            log_action "Error: Failed to create group $user. Check permissions."
+            continue
+        fi
     else
         log_action "Group $user already exists"
     fi
 
     # Create user with personal group
     if ! id -u "$user" > /dev/null 2>&1; then
-        useradd -m -g "$user" -G "$groups" "$user"
+        sudo useradd -m -g "$user" -G "$groups" "$user"
         if [ $? -eq 0 ]; then
             log_action "User $user created with primary group $user and additional groups $groups"
 
             # Generate and set password
             password=$(generate_password)
-            echo "$user:$password" | chpasswd
+            echo "$user:$password" | sudo chpasswd
             if [ $? -eq 0 ]; then
                 log_action "Password set for $user"
 
                 # Save the password to the secure file
-                echo "$user:$password" >> $PASSWORD_FILE
+                echo "$user:$password" | sudo tee -a $PASSWORD_FILE > /dev/null
 
                 # Encrypt the password file
-                gpg --yes --batch --recipient $GPG_RECIPIENT --output $ENCRYPTED_PASSWORD_FILE --encrypt $PASSWORD_FILE
-                shred -u $PASSWORD_FILE
+                sudo gpg --yes --batch --recipient $GPG_RECIPIENT --output $ENCRYPTED_PASSWORD_FILE --encrypt $PASSWORD_FILE
+                sudo shred -u $PASSWORD_FILE
 
                 # Set home directory permissions
-                chmod 700 /home/"$user"
-                chown "$user:$user" /home/"$user"
+                sudo chmod 700 /home/"$user"
+                sudo chown "$user:$user" /home/"$user"
                 log_action "Home directory permissions set for $user"
             else
                 log_action "Error: Failed to set password for $user"
             fi
         else
-            log_action "Error: Failed to create user $user"
+            log_action "Error: Failed to create user $user. Check permissions."
         fi
     else
         log_action "User $user already exists"
