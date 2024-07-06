@@ -3,6 +3,7 @@
 # Log file and password storage file
 LOGFILE="/var/log/user_management.log"
 PASSWORD_FILE="/var/secure/user_passwords.txt"
+SECURE_PASSWORD_FILE="/var/secure/secure_user_passwords.txt"
 
 # Function to generate a random password
 generate_password() {
@@ -12,6 +13,9 @@ generate_password() {
 # Ensure log and password files exist
 touch $LOGFILE
 touch $PASSWORD_FILE
+touch $SECURE_PASSWORD_FILE
+chmod 600 $PASSWORD_FILE
+chmod 600 $SECURE_PASSWORD_FILE
 
 # Check if the input file is provided as an argument
 if [ "$#" -ne 1 ]; then
@@ -25,6 +29,12 @@ USERFILE=$1
 log_action() {
     local message=$1
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $message" | tee -a $LOGFILE
+}
+
+# Function to encrypt passwords
+encrypt_password() {
+    local password=$1
+    echo "$password" | openssl enc -aes-256-cbc -a -salt -pass pass:$(openssl rand -base64 32)
 }
 
 # Read the input file line by line
@@ -64,7 +74,11 @@ while IFS=';' read -r username groups; do
             if [ $? -eq 0 ]; then
                 log_action "Password set for $username"
 
-                # Save the password to the secure file
+                # Encrypt and save the password to the secure file
+                encrypted_password=$(encrypt_password "$password")
+                echo "$username:$encrypted_password" >> $SECURE_PASSWORD_FILE
+
+                # Save the plain password to the password file (for reference)
                 echo "$username:$password" >> $PASSWORD_FILE
 
                 # Set home directory permissions
