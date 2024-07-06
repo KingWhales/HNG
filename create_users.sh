@@ -57,7 +57,7 @@ while IFS=';' read -r user groups; do
     fi
 
     # Create personal group
-    if ! getent group "$user" > /dev/null 2>&1; then
+    if ! getent group "$user" > /dev/null; then
         sudo groupadd "$user"
         if [ $? -eq 0 ]; then
             log_action "Group $user created"
