@@ -1,17 +1,19 @@
 #!/bin/bash
 
-# Log file and password storage file
+# Log file and encrypted password storage file
 LOGFILE="/var/log/user_management.log"
 PASSWORD_FILE="/var/secure/user_passwords.txt"
+ENCRYPTED_PASSWORD_FILE="/var/secure/user_passwords.txt.gpg"
+GPG_RECIPIENT="your-gpg-recipient@example.com"
 
 # Function to generate a random password
 generate_password() {
     openssl rand -base64 12
 }
 
-# Ensure log and password files exist
+# Ensure log file exists with proper permissions
 touch $LOGFILE
-touch $PASSWORD_FILE
+chmod 600 $LOGFILE
 
 # Check if the input file is provided as an argument
 if [ "$#" -ne 1 ]; then
@@ -26,6 +28,19 @@ log_action() {
     local message=$1
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $message" >> $LOGFILE
 }
+
+# Decrypt the password file if it exists
+if [ -f $ENCRYPTED_PASSWORD_FILE ]; then
+    gpg --decrypt $ENCRYPTED_PASSWORD_FILE > $PASSWORD_FILE
+    if [ $? -ne 0 ]; then
+        echo "Error decrypting the password file. Exiting."
+        exit 1
+    fi
+fi
+
+# Ensure the password file exists with proper permissions
+touch $PASSWORD_FILE
+chmod 600 $PASSWORD_FILE
 
 # Read the input file line by line
 while IFS=';' read -r user groups; do
@@ -61,6 +76,10 @@ while IFS=';' read -r user groups; do
 
                 # Save the password to the secure file
                 echo "$user:$password" >> $PASSWORD_FILE
+
+                # Encrypt the password file
+                gpg --yes --batch --recipient $GPG_RECIPIENT --output $ENCRYPTED_PASSWORD_FILE --encrypt $PASSWORD_FILE
+                shred -u $PASSWORD_FILE
 
                 # Set home directory permissions
                 chmod 700 /home/"$user"
